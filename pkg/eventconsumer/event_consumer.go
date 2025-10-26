@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fystack/mpcium/pkg/event"
-	"github.com/fystack/mpcium/pkg/identity"
-	"github.com/fystack/mpcium/pkg/logger"
-	"github.com/fystack/mpcium/pkg/messaging"
-	"github.com/fystack/mpcium/pkg/mpc"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/event"
+	"github.com/akshay-glide/mpcium/pkg/identity"
+	"github.com/akshay-glide/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/messaging"
+	"github.com/akshay-glide/mpcium/pkg/mpc"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/nats-io/nats.go"
 	"github.com/spf13/viper"
 )

@@ -18,11 +18,11 @@ import (
 	"github.com/bnb-chain/tss-lib/v2/tss"
 	"golang.org/x/term"
 
-	"github.com/fystack/mpcium/pkg/common/pathutil"
-	"github.com/fystack/mpcium/pkg/encryption"
-	"github.com/fystack/mpcium/pkg/logger"
-	"github.com/fystack/mpcium/pkg/security"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/common/pathutil"
+	"github.com/akshay-glide/mpcium/pkg/encryption"
+	"github.com/akshay-glide/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/security"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/spf13/viper"
 )
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fystack/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/logger"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 

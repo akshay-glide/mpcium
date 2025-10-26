@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"filippo.io/age"
-	"github.com/fystack/mpcium/pkg/encryption"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/encryption"
+	"github.com/akshay-glide/mpcium/pkg/types"
 )
 
 // LocalSigner implements the Signer interface for local key management

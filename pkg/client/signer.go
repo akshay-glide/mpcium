@@ -1,6 +1,6 @@
 package client
 
-import "github.com/fystack/mpcium/pkg/types"
+import "github.com/akshay-glide/mpcium/pkg/types"
 
 // Signer defines the interface for signing messages with different key types
 type Signer interface {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

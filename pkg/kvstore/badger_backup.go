@@ -15,8 +15,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/akshay-glide/mpcium/pkg/encryption"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/fystack/mpcium/pkg/encryption"
 	"github.com/rs/zerolog/log"
 )
 

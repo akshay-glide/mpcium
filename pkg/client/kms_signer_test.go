@@ -9,9 +9,9 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/akshay-glide/mpcium/pkg/encryption"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/fystack/mpcium/pkg/encryption"
-	"github.com/fystack/mpcium/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

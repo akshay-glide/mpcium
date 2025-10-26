@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/fystack/mpcium/pkg/event"
-	"github.com/fystack/mpcium/pkg/eventconsumer"
-	"github.com/fystack/mpcium/pkg/logger"
-	"github.com/fystack/mpcium/pkg/messaging"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/event"
+	"github.com/akshay-glide/mpcium/pkg/eventconsumer"
+	"github.com/akshay-glide/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/messaging"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 

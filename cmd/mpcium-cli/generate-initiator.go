@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"filippo.io/age"
-	"github.com/fystack/mpcium/pkg/common/pathutil"
-	"github.com/fystack/mpcium/pkg/encryption"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/common/pathutil"
+	"github.com/akshay-glide/mpcium/pkg/encryption"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/urfave/cli/v3"
 )
 

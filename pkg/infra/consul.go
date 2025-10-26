@@ -3,8 +3,8 @@ package infra
 import (
 	"time"
 
-	"github.com/fystack/mpcium/pkg/constant"
-	"github.com/fystack/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/constant"
+	"github.com/akshay-glide/mpcium/pkg/logger"
 	"github.com/hashicorp/consul/api"
 	"github.com/spf13/viper"
 )

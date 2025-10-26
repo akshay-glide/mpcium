@@ -3,8 +3,8 @@ package kvstore
 import (
 	"fmt"
 
+	"github.com/akshay-glide/mpcium/pkg/logger"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/fystack/mpcium/pkg/logger"
 )
 
 // quietBadgerLogger is a custom logger that suppresses INFO and DEBUG messages

@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"filippo.io/age"
-	"github.com/fystack/mpcium/pkg/encryption"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/encryption"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/akshay-glide/mpcium/pkg/logger"
 	"github.com/avast/retry-go"
-	"github.com/fystack/mpcium/pkg/logger"
 	"github.com/nats-io/nats.go"
 )
 

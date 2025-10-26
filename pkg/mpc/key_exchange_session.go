@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fystack/mpcium/pkg/identity"
-	"github.com/fystack/mpcium/pkg/logger"
-	"github.com/fystack/mpcium/pkg/messaging"
-	"github.com/fystack/mpcium/pkg/types"
+	"github.com/akshay-glide/mpcium/pkg/identity"
+	"github.com/akshay-glide/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/messaging"
+	"github.com/akshay-glide/mpcium/pkg/types"
 
 	"encoding/json"
 

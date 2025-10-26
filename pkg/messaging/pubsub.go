@@ -1,7 +1,7 @@
 package messaging
 
 import (
-	"github.com/fystack/mpcium/pkg/logger"
+	"github.com/akshay-glide/mpcium/pkg/logger"
 	"github.com/nats-io/nats.go"
 )
 

@@ -7,12 +7,12 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/akshay-glide/mpcium/pkg/encryption"
+	"github.com/akshay-glide/mpcium/pkg/types"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
-	"github.com/fystack/mpcium/pkg/encryption"
-	"github.com/fystack/mpcium/pkg/types"
 )
 
 // KMSSigner implements the Signer interface for AWS KMS-based signing

@@ -1,11 +1,11 @@
 package mpc
 
 import (
+	"github.com/akshay-glide/mpcium/pkg/common/errors"
 	"github.com/bnb-chain/tss-lib/v2/eddsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/eddsa/resharing"
 	"github.com/bnb-chain/tss-lib/v2/eddsa/signing"
 	"github.com/bnb-chain/tss-lib/v2/tss"
-	"github.com/fystack/mpcium/pkg/common/errors"
 )
 
 type GetRoundFunc func(msg []byte, partyID *tss.PartyID, isBroadcast bool) (RoundInfo, error)
