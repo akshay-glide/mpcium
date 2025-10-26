@@ -2,64 +2,111 @@ package eventconsumer
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/fystack/mpcium/pkg/event"
 	"github.com/fystack/mpcium/pkg/logger"
 	"github.com/fystack/mpcium/pkg/messaging"
-	"github.com/nats-io/nats.go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// Other service not listen to this subject that make loss of message
-const maxDeliveriesExceededSubject = "$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.>"
+// RabbitMQ uses dead letter queues instead of advisory messages
+const deadLetterQueueName = "mpc_signing_dlq"
 
 type timeOutConsumer struct {
-	natsConn    *nats.Conn
+	rabbitConn  *amqp.Connection
 	resultQueue messaging.MessageQueue
-	advisorySub messaging.Subscription
+	dlqSub      messaging.MessageSubscription
 }
 
-func NewTimeOutConsumer(natsConn *nats.Conn, resultQueue messaging.MessageQueue) *timeOutConsumer {
+func NewTimeOutConsumer(rabbitConn *amqp.Connection, resultQueue messaging.MessageQueue) *timeOutConsumer {
 	return &timeOutConsumer{
-		natsConn:    natsConn,
+		rabbitConn:  rabbitConn,
 		resultQueue: resultQueue,
 	}
 }
 
 func (tc *timeOutConsumer) Run() {
-	logger.Info("Starting advisory consumer for max deliveries exceeded")
-	sub, err := tc.natsConn.Subscribe(maxDeliveriesExceededSubject, func(msg *nats.Msg) {
-		data := msg.Data
-		var advisory struct {
-			Stream    string `json:"stream"`
-			StreamSeq uint64 `json:"stream_seq"`
-		}
+	logger.Info("Starting dead letter queue consumer for timeout handling")
 
-		err := json.Unmarshal(data, &advisory)
-		if err != nil {
-			logger.Error("Failed to unmarshal advisory message", err)
-			return
-		}
-		logger.Info("Received advisory message", "stream", advisory.Stream, "stream_seq", advisory.StreamSeq)
+	ch, err := tc.rabbitConn.Channel()
+	if err != nil {
+		logger.Error("Failed to create channel for DLQ consumer", err)
+		return
+	}
 
-		if advisory.Stream == event.SigningPublisherStream {
-			logger.Info("Received max deliveries exceeded advisory", "stream", advisory.Stream, "stream_seq", advisory.StreamSeq)
-			js, _ := tc.natsConn.JetStream()
-			failedMsg, err := js.GetMsg(advisory.Stream, advisory.StreamSeq)
+	// Declare dead letter exchange
+	dlxName := fmt.Sprintf("%s_dlx", event.SigningPublisherStream)
+	err = ch.ExchangeDeclare(
+		dlxName,
+		"topic",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("Failed to declare DLX", err)
+		return
+	}
 
-			if err != nil {
-				logger.Error("Failed to retrieve message", err)
-				return
-			}
+	// Declare dead letter queue
+	dlqName := fmt.Sprintf("%s_dlq", event.SigningPublisherStream)
+	_, err = ch.QueueDeclare(
+		dlqName,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("Failed to declare DLQ", err)
+		return
+	}
 
-			data := failedMsg.Data
+	// Bind DLQ to DLX
+	err = ch.QueueBind(
+		dlqName,
+		"#", // catch all routing keys
+		dlxName,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("Failed to bind DLQ to DLX", err)
+		return
+	}
+
+	// Start consuming from dead letter queue
+	msgs, err := ch.Consume(
+		dlqName,
+		"timeout_consumer",
+		false, // manual ack
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("Failed to consume from DLQ", err)
+		return
+	}
+
+	go func() {
+		for d := range msgs {
+			logger.Info("Received message from DLQ", "deliveryTag", d.DeliveryTag)
+
 			var signErrorResult event.SigningResultEvent
-			err = json.Unmarshal(data, &signErrorResult)
-
+			err := json.Unmarshal(d.Body, &signErrorResult)
 			if err != nil {
-				logger.Error("Failed to unmarshal signing result event", err)
-				return
+				logger.Error("Failed to unmarshal signing result event from DLQ", err)
+				d.Ack(false)
+				continue
 			}
 
+			// Mark as timeout error
 			signErrorResult.ResultType = event.ResultTypeError
 			signErrorResult.ErrorCode = event.ErrorCodeMaxDeliveryAttempts
 			signErrorResult.IsTimeout = true
@@ -68,32 +115,28 @@ func (tc *timeOutConsumer) Run() {
 			signErrorResultBytes, err := json.Marshal(signErrorResult)
 			if err != nil {
 				logger.Error("Failed to marshal signing result event", err)
-				return
+				d.Ack(false)
+				continue
 			}
 
 			err = tc.resultQueue.Enqueue(event.SigningResultTopic, signErrorResultBytes, &messaging.EnqueueOptions{
 				IdempotententKey: signErrorResult.TxID,
 			})
 			if err != nil {
-				logger.Error("Failed to publish signing result event", err)
-				return
+				logger.Error("Failed to publish signing result event for timeout", err)
+				d.Nack(false, true) // requeue
+				continue
 			}
-			logger.Info("Published signing result event for timeout", "txID", signErrorResult.TxID)
-			return
-		}
-	})
-	if err != nil {
-		logger.Error("Failed to subscribe to max deliveries exceeded subject", err)
-		return
-	}
 
-	tc.advisorySub = sub
+			logger.Info("Published signing result event for timeout", "txID", signErrorResult.TxID)
+			d.Ack(false)
+		}
+	}()
 }
 
 func (tc *timeOutConsumer) Close() error {
-	err := tc.advisorySub.Unsubscribe()
-	if err != nil {
-		return err
+	if tc.dlqSub != nil {
+		return tc.dlqSub.Unsubscribe()
 	}
 	return nil
 }

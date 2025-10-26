@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"os/signal"
@@ -25,6 +26,7 @@ import (
 	"github.com/fystack/mpcium/pkg/security"
 	"github.com/hashicorp/consul/api"
 	"github.com/nats-io/nats.go"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/viper"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/term"
@@ -153,31 +155,39 @@ func runNode(ctx context.Context, c *cli.Command) error {
 		logger.Fatal("Failed to create identity store", err)
 	}
 
-	natsConn, err := GetNATSConnection(environment, appConfig)
+	rabbitConn, err := GetRabbitMQConnection(environment, appConfig)
 	if err != nil {
-		logger.Fatal("Failed to connect to NATS", err)
+		logger.Fatal("Failed to connect to RabbitMQ", err)
 	}
 
-	pubsub := messaging.NewNATSPubSub(natsConn)
-	keygenBroker, err := messaging.NewJetStreamBroker(ctx, natsConn, event.KeygenBrokerStream, []string{
+	pubsub, err := messaging.NewRabbitMQPubSub(rabbitConn)
+	if err != nil {
+		logger.Fatal("Failed to create RabbitMQ PubSub", err)
+	}
+
+	keygenBroker, err := messaging.NewRabbitMQBroker(ctx, rabbitConn, event.KeygenBrokerStream, []string{
 		event.KeygenRequestTopic,
 	})
 	if err != nil {
-		logger.Fatal("Failed to create keygen jetstream broker", err)
+		logger.Fatal("Failed to create keygen RabbitMQ broker", err)
 	}
-	signingBroker, err := messaging.NewJetStreamBroker(ctx, natsConn, event.SigningPublisherStream, []string{
+
+	signingBroker, err := messaging.NewRabbitMQBroker(ctx, rabbitConn, event.SigningPublisherStream, []string{
 		event.SigningRequestTopic,
 	})
 	if err != nil {
-		logger.Fatal("Failed to create signing jetstream broker", err)
+		logger.Fatal("Failed to create signing RabbitMQ broker", err)
 	}
 
-	directMessaging := messaging.NewNatsDirectMessaging(natsConn)
-	mqManager := messaging.NewNATsMessageQueueManager("mpc", []string{
+	directMessaging, err := messaging.NewRabbitMQDirectMessaging(rabbitConn)
+	if err != nil {
+		logger.Fatal("Failed to create RabbitMQ DirectMessaging", err)
+	}
+	mqManager := messaging.NewRabbitMQMessageQueueManager("mpc", []string{
 		"mpc.mpc_keygen_result.*",
 		event.SigningResultTopic,
 		"mpc.mpc_reshare_result.*",
-	}, natsConn)
+	}, rabbitConn)
 
 	genKeyResultQueue := mqManager.NewMessageQueue("mpc_keygen_result")
 	defer genKeyResultQueue.Close()
@@ -215,14 +225,14 @@ func runNode(ctx context.Context, c *cli.Command) error {
 	defer eventConsumer.Close()
 
 	timeoutConsumer := eventconsumer.NewTimeOutConsumer(
-		natsConn,
+		rabbitConn, // Changed from natsConn
 		singingResultQueue,
 	)
 
 	timeoutConsumer.Run()
 	defer timeoutConsumer.Close()
-	keygenConsumer := eventconsumer.NewKeygenConsumer(natsConn, keygenBroker, pubsub, peerRegistry, genKeyResultQueue)
-	signingConsumer := eventconsumer.NewSigningConsumer(natsConn, signingBroker, pubsub, peerRegistry, singingResultQueue)
+	keygenConsumer := eventconsumer.NewKeygenConsumer(rabbitConn, keygenBroker, pubsub, peerRegistry, genKeyResultQueue)
+	signingConsumer := eventconsumer.NewSigningConsumer(rabbitConn, signingBroker, pubsub, peerRegistry, singingResultQueue)
 
 	// Make the node ready before starting the signing consumer
 	if err := peerRegistry.Ready(); err != nil {
@@ -253,9 +263,9 @@ func runNode(ctx context.Context, c *cli.Command) error {
 			logger.Error("Failed to close signing consumer", err)
 		}
 
-		err := natsConn.Drain()
+		err := rabbitConn.Close()
 		if err != nil {
-			logger.Error("Failed to drain NATS connection", err)
+			logger.Error("Failed to close RabbitMQ connection", err)
 		}
 	}()
 
@@ -545,4 +555,23 @@ func GetNATSConnection(environment string, appConfig *config.AppConfig) (*nats.C
 	}
 
 	return nats.Connect(url, opts...)
+}
+
+func GetRabbitMQConnection(environment string, appConfig *config.AppConfig) (*amqp.Connection, error) {
+	url := viper.GetString("rabbitmq.url")
+	if url == "" {
+		return nil, fmt.Errorf("rabbitmq.url not configured")
+	}
+
+	// Handle TLS configuration if needed
+	useTLS := viper.GetBool("rabbitmq.tls.enabled")
+	if useTLS {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: viper.GetBool("rabbitmq.tls.insecure_skip_verify"),
+		}
+
+		return amqp.DialTLS(url, tlsConfig)
+	}
+
+	return amqp.Dial(url)
 }

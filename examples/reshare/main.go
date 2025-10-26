@@ -61,8 +61,7 @@ func main() {
 	}
 
 	mpcClient := client.NewMPCClient(client.Options{
-		NatsConn: natsConn,
-		Signer:   localSigner,
+		Signer: localSigner,
 	})
 
 	// 3) Listen for signing results

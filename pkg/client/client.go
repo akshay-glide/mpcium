@@ -10,7 +10,7 @@ import (
 	"github.com/fystack/mpcium/pkg/logger"
 	"github.com/fystack/mpcium/pkg/messaging"
 	"github.com/fystack/mpcium/pkg/types"
-	"github.com/nats-io/nats.go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const (
@@ -41,8 +41,8 @@ type mpcClient struct {
 
 // Options defines configuration options for creating a new MPCClient
 type Options struct {
-	// NATS connection
-	NatsConn *nats.Conn
+	// RabbitMQ connection
+	RabbitConn *amqp.Connection
 
 	// Signer for signing messages
 	Signer Signer
@@ -55,37 +55,43 @@ func NewMPCClient(opts Options) MPCClient {
 		logger.Fatal("Signer is required", nil)
 	}
 
-	// 2) Create the PubSub for both publish & subscribe
-	signingBroker, err := messaging.NewJetStreamBroker(
+	// Create RabbitMQ brokers instead of JetStream brokers
+	signingBroker, err := messaging.NewRabbitMQBroker(
 		context.Background(),
-		opts.NatsConn,
+		opts.RabbitConn,
 		"mpc-signing",
 		[]string{
 			"mpc.signing_request.*",
 		},
 	)
 	if err != nil {
-		logger.Fatal("Failed to create signing jetstream broker", err)
+		logger.Fatal("Failed to create signing RabbitMQ broker", err)
 	}
-	keygenBroker, err := messaging.NewJetStreamBroker(
+
+	keygenBroker, err := messaging.NewRabbitMQBroker(
 		context.Background(),
-		opts.NatsConn,
+		opts.RabbitConn,
 		"mpc-keygen",
 		[]string{
 			"mpc.keygen_request.*",
 		},
 	)
 	if err != nil {
-		logger.Fatal("Failed to create keygen jetstream broker", err)
+		logger.Fatal("Failed to create keygen RabbitMQ broker", err)
 	}
 
-	pubsub := messaging.NewNATSPubSub(opts.NatsConn)
+	// Create RabbitMQ PubSub
+	pubsub, err := messaging.NewRabbitMQPubSub(opts.RabbitConn)
+	if err != nil {
+		logger.Fatal("Failed to create RabbitMQ PubSub", err)
+	}
 
-	manager := messaging.NewNATsMessageQueueManager("mpc", []string{
+	// Create RabbitMQ message queue manager
+	manager := messaging.NewRabbitMQMessageQueueManager("mpc", []string{
 		"mpc.mpc_keygen_result.*",
 		"mpc.mpc_signing_result.*",
 		"mpc.mpc_reshare_result.*",
-	}, opts.NatsConn)
+	}, opts.RabbitConn)
 
 	genKeySuccessQueue := manager.NewMessageQueue("mpc_keygen_result")
 	signResultQueue := manager.NewMessageQueue("mpc_signing_result")

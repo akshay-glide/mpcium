@@ -134,9 +134,18 @@ func (r *registry) registerReadyPairs(peerIDs []string) {
 	}
 }
 
-// triggerECDHExchange safely triggers ECDH key exchange
 func (r *registry) triggerECDHExchange() {
 	logger.Info("Triggering ECDH key exchange")
+
+	// Ensure ECDH session is initialized before broadcasting
+	if !r.ecdhSession.IsInitialized() {
+		logger.Debug("ECDH session not yet initialized, starting listener")
+		if err := r.ecdhSession.ListenKeyExchange(); err != nil {
+			logger.Error("Failed to start ECDH listener during retrigger", err)
+			return
+		}
+	}
+
 	if err := r.ecdhSession.BroadcastPublicKey(); err != nil {
 		logger.Error("Failed to trigger ECDH exchange", err)
 	}

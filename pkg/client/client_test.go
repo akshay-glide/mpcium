@@ -45,8 +45,7 @@ func TestNewMPCClient_Success(t *testing.T) {
 	// Since we can't easily create a real NATS connection in unit tests,
 	// we'll test the Options validation logic
 	opts := Options{
-		NatsConn: MockNATSConn(), // This would normally be a real connection
-		Signer:   mockSigner,
+		Signer: mockSigner,
 	}
 
 	// Test that signer is required
@@ -57,8 +56,7 @@ func TestNewMPCClient_NoSigner(t *testing.T) {
 	// Test that client creation fails without signer
 	// This test would require mocking the logger.Fatal call or refactoring to return error
 	opts := Options{
-		NatsConn: MockNATSConn(),
-		Signer:   nil,
+		Signer: nil,
 	}
 
 	assert.Nil(t, opts.Signer, "Signer should be nil to test error case")
@@ -66,7 +64,7 @@ func TestNewMPCClient_NoSigner(t *testing.T) {
 
 func TestMPCClient_CreateWallet(t *testing.T) {
 	mockSigner := &MockSigner{}
-	
+
 	// Set up expectations
 	testSignature := []byte("test-signature")
 	mockSigner.On("Sign", mock.AnythingOfType("[]uint8")).Return(testSignature, nil)
@@ -79,20 +77,20 @@ func TestMPCClient_CreateWallet(t *testing.T) {
 	// Test CreateWallet - this will test the signing logic
 	// Note: This test would require mocking the messaging broker as well
 	// For now, we test that the signer is called correctly
-	
+
 	walletID := "test-wallet-123"
-	
+
 	// We can't fully test CreateWallet without mocking the broker,
 	// but we can test the signing part by calling it directly
-	
+
 	// Simulate what CreateWallet does with signing
 	msg := &types.GenerateKeyMessage{
 		WalletID: walletID,
 	}
-	
+
 	raw, err := msg.Raw()
 	require.NoError(t, err)
-	
+
 	signature, err := client.signer.Sign(raw)
 	require.NoError(t, err)
 	assert.Equal(t, testSignature, signature)
@@ -103,7 +101,7 @@ func TestMPCClient_CreateWallet(t *testing.T) {
 
 func TestMPCClient_CreateWallet_SigningError(t *testing.T) {
 	mockSigner := &MockSigner{}
-	
+
 	// Set up signer to return error
 	mockSigner.On("Sign", mock.AnythingOfType("[]uint8")).Return([]byte(nil), errors.New("signing failed"))
 
@@ -115,10 +113,10 @@ func TestMPCClient_CreateWallet_SigningError(t *testing.T) {
 	msg := &types.GenerateKeyMessage{
 		WalletID: "test-wallet",
 	}
-	
+
 	raw, err := msg.Raw()
 	require.NoError(t, err)
-	
+
 	signature, err := client.signer.Sign(raw)
 	assert.Error(t, err)
 	assert.Nil(t, signature)
@@ -129,7 +127,7 @@ func TestMPCClient_CreateWallet_SigningError(t *testing.T) {
 
 func TestMPCClient_SignTransaction(t *testing.T) {
 	mockSigner := &MockSigner{}
-	
+
 	// Set up expectations
 	testSignature := []byte("test-transaction-signature")
 	mockSigner.On("Sign", mock.AnythingOfType("[]uint8")).Return(testSignature, nil)
@@ -146,10 +144,10 @@ func TestMPCClient_SignTransaction(t *testing.T) {
 		TxID:                "test-tx-123",
 		Tx:                  []byte("test transaction data"),
 	}
-	
+
 	raw, err := msg.Raw()
 	require.NoError(t, err)
-	
+
 	signature, err := client.signer.Sign(raw)
 	require.NoError(t, err)
 	assert.Equal(t, testSignature, signature)
@@ -159,7 +157,7 @@ func TestMPCClient_SignTransaction(t *testing.T) {
 
 func TestMPCClient_Resharing(t *testing.T) {
 	mockSigner := &MockSigner{}
-	
+
 	// Set up expectations
 	testSignature := []byte("test-resharing-signature")
 	mockSigner.On("Sign", mock.AnythingOfType("[]uint8")).Return(testSignature, nil)
@@ -176,10 +174,10 @@ func TestMPCClient_Resharing(t *testing.T) {
 		KeyType:      types.KeyTypeSecp256k1,
 		WalletID:     "test-wallet",
 	}
-	
+
 	raw, err := msg.Raw()
 	require.NoError(t, err)
-	
+
 	signature, err := client.signer.Sign(raw)
 	require.NoError(t, err)
 	assert.Equal(t, testSignature, signature)
@@ -190,7 +188,7 @@ func TestMPCClient_Resharing(t *testing.T) {
 func TestSignerInterface_Compliance(t *testing.T) {
 	// Test that our mock signer implements the interface correctly
 	mockSigner := &MockSigner{}
-	
+
 	// Set up mock expectations
 	mockSigner.On("Algorithm").Return(types.EventInitiatorKeyTypeP256)
 	mockSigner.On("PublicKey").Return("mock-public-key-hex", nil)
@@ -215,7 +213,7 @@ func TestSignerInterface_Compliance(t *testing.T) {
 
 func TestSignerInterface_ErrorHandling(t *testing.T) {
 	mockSigner := &MockSigner{}
-	
+
 	// Set up error cases
 	mockSigner.On("PublicKey").Return("", errors.New("public key error"))
 	mockSigner.On("Sign", mock.Anything).Return([]byte(nil), errors.New("signing error"))
@@ -242,8 +240,7 @@ func TestOptionsValidation(t *testing.T) {
 	t.Run("valid options", func(t *testing.T) {
 		mockSigner := &MockSigner{}
 		opts := Options{
-			NatsConn: MockNATSConn(),
-			Signer:   mockSigner,
+			Signer: mockSigner,
 		}
 
 		assert.NotNil(t, opts.Signer)
@@ -252,8 +249,7 @@ func TestOptionsValidation(t *testing.T) {
 
 	t.Run("missing signer", func(t *testing.T) {
 		opts := Options{
-			NatsConn: MockNATSConn(),
-			Signer:   nil,
+			Signer: nil,
 		}
 
 		assert.Nil(t, opts.Signer)
@@ -288,7 +284,7 @@ func createTestMPCClient(signer Signer) *mpcClient {
 func TestCreateTestMPCClient(t *testing.T) {
 	mockSigner := &MockSigner{}
 	client := createTestMPCClient(mockSigner)
-	
+
 	assert.NotNil(t, client)
 	assert.Equal(t, mockSigner, client.signer)
 }

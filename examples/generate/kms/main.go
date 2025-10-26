@@ -63,8 +63,7 @@ func main() {
 	logger.Info("Public key", "key", pubKey)
 
 	mpcClient := client.NewMPCClient(client.Options{
-		NatsConn: natsConn,
-		Signer:   kmsSigner,
+		Signer: kmsSigner,
 	})
 
 	var walletStartTimes sync.Map

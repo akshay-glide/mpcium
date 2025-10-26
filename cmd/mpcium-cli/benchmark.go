@@ -215,13 +215,14 @@ func createMPCClient(cmd *cli.Command) (client.MPCClient, error) {
 	logger.Init(environment, debug)
 
 	// Create NATS connection using the same logic as main mpcium
-	nc, err := getNATSConnection(environment, appConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
-	}
+	// nc, err := getNATSConnection(environment, appConfig)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+	// }
 
 	// Handle password prompting
 	var password string
+	var err error
 	if promptPassword {
 		password, err = promptForPassword()
 		if err != nil {
@@ -242,8 +243,7 @@ func createMPCClient(cmd *cli.Command) (client.MPCClient, error) {
 	}
 
 	opts := client.Options{
-		NatsConn: nc,
-		Signer:   signer,
+		Signer: signer,
 	}
 	return client.NewMPCClient(opts), nil
 }
@@ -274,7 +274,7 @@ func generateUniqueID(prefix string) string {
 		return fmt.Sprintf("%s-%d-%d", prefix, time.Now().UnixNano(), os.Getpid())
 	}
 	randomHex := hex.EncodeToString(randomBytes)
-	
+
 	// Combine timestamp, process ID, and random bytes
 	return fmt.Sprintf("%s-%d-%d-%s", prefix, time.Now().UnixNano(), os.Getpid(), randomHex)
 }
@@ -890,7 +890,7 @@ func writeBenchmarkToFile(content, outputFile, operationType string) (err error)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
-	
+
 	// Open file for appending (create if doesn't exist)
 	file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
@@ -901,17 +901,17 @@ func writeBenchmarkToFile(content, outputFile, operationType string) (err error)
 			err = fmt.Errorf("failed to close file: %w", closeErr)
 		}
 	}()
-	
+
 	// Write content to file
 	if _, err := file.WriteString(content); err != nil {
 		return fmt.Errorf("failed to write content: %w", err)
 	}
-	
+
 	// Add separator for multiple benchmark runs
 	separator := fmt.Sprintf("\n%s\n\n", strings.Repeat("=", 80))
 	if _, err := file.WriteString(separator); err != nil {
 		return fmt.Errorf("failed to write separator: %w", err)
 	}
-	
+
 	return nil
 }

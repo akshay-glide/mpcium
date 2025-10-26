@@ -32,6 +32,7 @@ type ECDHSession interface {
 	GetReadyPeersCount() int
 	ErrChan() <-chan error
 	Close() error
+	IsInitialized() bool
 }
 
 type ecdhSession struct {
@@ -58,6 +59,10 @@ func NewECDHSession(
 		identityStore: identityStore,
 		errCh:         make(chan error, 1),
 	}
+}
+
+func (e *ecdhSession) IsInitialized() bool {
+	return e.publicKey != nil
 }
 
 func (e *ecdhSession) RemovePeer(peerID string) {

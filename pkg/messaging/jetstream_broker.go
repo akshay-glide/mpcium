@@ -2,7 +2,6 @@ package messaging
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,25 +12,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-var (
-	ErrInvalidStreamName    = errors.New("stream name cannot be empty")
-	ErrInvalidSubjects      = errors.New("subjects cannot be empty")
-	ErrConsumerCreation     = errors.New("failed to create consumer")
-	ErrStreamCreation       = errors.New("failed to create stream")
-	ErrInvalidConfiguration = errors.New("invalid configuration")
-	ErrConnectionClosed     = errors.New("connection is closed")
-	ErrSubscriptionClosed   = errors.New("subscription is closed")
-)
-
-const (
-	DefaultAckWait             = 30 * time.Second
-	DefaultMaxDeliveryAttempts = 3
-	DefaultConsumerPrefix      = "consumer"
-	DefaultStreamMaxAge        = 3 * time.Minute
-	DefaultBackoffDuration     = 30 * time.Second
-)
-
-type MessageBroker interface {
+type NatsMessageBroker interface {
 	PublishMessage(ctx context.Context, subject string, data []byte) error
 	CreateSubscription(ctx context.Context, consumerName, subject string, handler func(msg jetstream.Msg)) (MessageSubscription, error)
 	GetStreamInfo(ctx context.Context) (*jetstream.StreamInfo, error)
@@ -39,13 +20,13 @@ type MessageBroker interface {
 	Close() error
 }
 
-type MessageSubscription interface {
+type NatsMessageSubscription interface {
 	Unsubscribe() error
 }
 
-type BrokerOption func(*brokerConfiguration)
+type NatsBrokerOption func(*natsBrokerConfiguration)
 
-type brokerConfiguration struct {
+type natsBrokerConfiguration struct {
 	streamName          string
 	subjects            []string
 	description         string
@@ -60,68 +41,68 @@ type brokerConfiguration struct {
 	backoffDurations    []time.Duration
 }
 
-func WithStreamDescription(description string) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithStreamDescription(description string) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.description = description
 	}
 }
 
-func WithRetentionPolicy(policy nats.RetentionPolicy) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithRetentionPolicy(policy nats.RetentionPolicy) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.retention = policy
 	}
 }
 
-func WithStorageType(storage nats.StorageType) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithStorageType(storage nats.StorageType) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.storage = storage
 	}
 }
 
-func WithMaxAge(maxAge time.Duration) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithNATsMaxAge(maxAge time.Duration) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.maxAge = maxAge
 	}
 }
 
-func WithDiscardPolicy(policy nats.DiscardPolicy) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithDiscardPolicy(policy nats.DiscardPolicy) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.discard = policy
 	}
 }
 
-func WithAckWait(ackWait time.Duration) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithNAtsAckWait(ackWait time.Duration) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.ackWait = ackWait
 	}
 }
 
-func WithMaxDeliveryAttempts(maxAttempts int) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithNAtsMaxDeliveryAttempts(maxAttempts int) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.maxDeliveryAttempts = maxAttempts
 	}
 }
 
-func WithConsumerNamePrefix(prefix string) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithNAtsConsumerNamePrefix(prefix string) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.consumerNamePrefix = prefix
 	}
 }
 
-func WithDeliverPolicy(policy jetstream.DeliverPolicy) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithDeliverPolicy(policy jetstream.DeliverPolicy) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.deliverPolicy = policy
 	}
 }
 
-func WithBackoffDurations(durations []time.Duration) BrokerOption {
-	return func(cfg *brokerConfiguration) {
+func WithNAtsBackoffDurations(durations []time.Duration) NatsBrokerOption {
+	return func(cfg *natsBrokerConfiguration) {
 		cfg.backoffDurations = durations
 	}
 }
 
 type jetStreamBroker struct {
-	config brokerConfiguration
+	config natsBrokerConfiguration
 	js     jetstream.JetStream
 	conn   *nats.Conn
 }
@@ -131,9 +112,9 @@ func NewJetStreamBroker(
 	natsConn *nats.Conn,
 	streamName string,
 	subjects []string,
-	opts ...BrokerOption,
-) (MessageBroker, error) {
-	config := brokerConfiguration{
+	opts ...NatsBrokerOption,
+) (NatsMessageBroker, error) {
+	config := natsBrokerConfiguration{
 		streamName:          streamName,
 		subjects:            subjects,
 		description:         fmt.Sprintf("Stream for %s", streamName),

@@ -12,8 +12,7 @@ import (
 	"github.com/fystack/mpcium/pkg/mpc"
 	"github.com/fystack/mpcium/pkg/types"
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/viper"
 )
 
@@ -36,22 +35,20 @@ type SigningConsumer interface {
 
 // signingConsumer implements SigningConsumer.
 type signingConsumer struct {
-	natsConn           *nats.Conn
+	rabbitConn         *amqp.Connection
 	pubsub             messaging.PubSub
 	jsBroker           messaging.MessageBroker
 	peerRegistry       mpc.PeerRegistry
 	mpcThreshold       int
 	signingResultQueue messaging.MessageQueue
-
-	// jsSub holds the JetStream subscription, so it can be cleaned up during Close().
-	jsSub messaging.Subscription
+	jsSub              messaging.MessageSubscription
 }
 
 // NewSigningConsumer returns a new instance of SigningConsumer.
-func NewSigningConsumer(natsConn *nats.Conn, jsBroker messaging.MessageBroker, pubsub messaging.PubSub, peerRegistry mpc.PeerRegistry, signingResultQueue messaging.MessageQueue) SigningConsumer {
+func NewSigningConsumer(rabbitConn *amqp.Connection, jsBroker messaging.MessageBroker, pubsub messaging.PubSub, peerRegistry mpc.PeerRegistry, signingResultQueue messaging.MessageQueue) SigningConsumer {
 	mpcThreshold := viper.GetInt("mpc_threshold")
 	return &signingConsumer{
-		natsConn:           natsConn,
+		rabbitConn:         rabbitConn,
 		pubsub:             pubsub,
 		jsBroker:           jsBroker,
 		peerRegistry:       peerRegistry,
@@ -139,16 +136,19 @@ func (sc *signingConsumer) Run(ctx context.Context) error {
 // The MPC signing sessions manage the distributed cryptographic operations across multiple nodes, handling message routing, party updates, and signature verification.
 // When signing completes, the session publishes the result to a queue and calls the onSuccess callback, which sends a reply to the inbox that the SigningConsumer is monitoring.
 // The reply signals completion, allowing the SigningConsumer to acknowledge the original message.
-func (sc *signingConsumer) handleSigningEvent(msg jetstream.Msg) {
-	// Parse the signing request message to extract transaction details
+func (sc *signingConsumer) handleSigningEvent(msg messaging.Message) {
 	raw := msg.Data()
 	var signingMsg types.SignTxMessage
-	sessionID := msg.Headers().Get("SessionID")
+	sessionID := msg.Headers()["SessionID"]
+	var sessionIDStr string
+	if len(sessionID) > 0 {
+		sessionIDStr = sessionID[0]
+	}
 
 	err := json.Unmarshal(raw, &signingMsg)
 	if err != nil {
 		logger.Error("SigningConsumer: Failed to unmarshal signing message", err)
-		sc.handleSigningError(signingMsg, event.ErrorCodeUnmarshalFailure, err, sessionID)
+		sc.handleSigningError(signingMsg, event.ErrorCodeUnmarshalFailure, err, sessionIDStr)
 		_ = msg.Ack()
 		return
 	}
@@ -156,54 +156,79 @@ func (sc *signingConsumer) handleSigningEvent(msg jetstream.Msg) {
 	if !sc.peerRegistry.AreMajorityReady() {
 		requiredPeers := int64(sc.mpcThreshold + 1)
 		err := fmt.Errorf("not enough peers to process signing request: ready=%d, required=%d", sc.peerRegistry.GetReadyPeersCount(), requiredPeers)
-		sc.handleSigningError(signingMsg, event.ErrorCodeNotMajority, err, sessionID)
+		sc.handleSigningError(signingMsg, event.ErrorCodeNotMajority, err, sessionIDStr)
 		_ = msg.Ack()
 		return
 	}
-	// Create a reply inbox to receive the signing event response.
-	replyInbox := nats.NewInbox()
 
-	// Use a synchronous subscription for the reply inbox.
-	replySub, err := sc.natsConn.SubscribeSync(replyInbox)
+	// Create a reply queue for this request
+	ch, err := sc.rabbitConn.Channel()
 	if err != nil {
-		logger.Error("SigningConsumer: Failed to subscribe to reply inbox", err)
+		logger.Error("SigningConsumer: Failed to create channel", err)
 		_ = msg.Nak()
 		return
 	}
-	defer func() {
-		if err := replySub.Unsubscribe(); err != nil {
-			logger.Warn("SigningConsumer: Failed to unsubscribe from reply inbox", "error", err)
-		}
-	}()
+	defer ch.Close()
 
-	// Publish the signing event with the reply inbox.
+	replyQueue, err := ch.QueueDeclare(
+		"",    // auto-generated name
+		false, // durable
+		true,  // delete when unused
+		true,  // exclusive
+		false, // no-wait
+		nil,
+	)
+	if err != nil {
+		logger.Error("SigningConsumer: Failed to declare reply queue", err)
+		_ = msg.Nak()
+		return
+	}
+
+	// Consume from reply queue
+	msgs, err := ch.Consume(
+		replyQueue.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("SigningConsumer: Failed to consume from reply queue", err)
+		_ = msg.Nak()
+		return
+	}
+
+	// Publish the signing event with reply queue
 	headers := map[string]string{
 		"SessionID": uuid.New().String(),
 	}
-	if err := sc.pubsub.PublishWithReply(MPCSignEvent, replyInbox, msg.Data(), headers); err != nil {
+	if err := sc.pubsub.PublishWithReply(MPCSignEvent, replyQueue.Name, raw, headers); err != nil {
 		logger.Error("SigningConsumer: Failed to publish signing event with reply", err)
 		_ = msg.Nak()
 		return
 	}
 
-	// Poll for the reply message until timeout.
+	// Wait for reply with timeout
 	deadline := time.Now().Add(signingResponseTimeout)
 	for time.Now().Before(deadline) {
-		replyMsg, err := replySub.NextMsg(signingPollingInterval)
-		if err != nil {
-			// If timeout occurs, continue trying.
-			if err == nats.ErrTimeout {
-				continue
+		select {
+		case replyMsg, ok := <-msgs:
+			if !ok {
+				logger.Info("SigningConsumer: Reply channel closed")
+				_ = msg.Nak()
+				return
 			}
-			logger.Error("SigningConsumer: Error receiving reply message", err)
-			break
-		}
-		if replyMsg != nil {
-			logger.Info("SigningConsumer: Completed signing event; reply received")
-			if ackErr := msg.Ack(); ackErr != nil {
-				logger.Error("SigningConsumer: ACK failed", ackErr)
+			if replyMsg.Body != nil {
+				logger.Info("SigningConsumer: Completed signing event; reply received")
+				if ackErr := msg.Ack(); ackErr != nil {
+					logger.Error("SigningConsumer: ACK failed", ackErr)
+				}
+				return
 			}
-			return
+		case <-time.After(signingPollingInterval):
+			continue
 		}
 	}
 
